@@ -6,30 +6,15 @@
 (define (last-digit chars)
   (first-digit (reverse chars)))
 
-(first-digit (string->list "pqr3stu8vwx"))
-(last-digit (string->list "pqr3stu8vwx"))
-(first-digit (string->list "treb7uchet"))
-(last-digit (string->list "treb7uchet"))
-
 (define (find-calibration-value str)
   (let [(chars (string->list str))]
     (string->number (string (first-digit chars) (last-digit chars)))))
 
-(find-calibration-value "pqr3stu8vwx")
-(find-calibration-value "treb7uchet")
-
-(define (find-all-calibration-values str)
+(define (find-all-calibration-values find-calibration-value str)
   (foldl + 0 (map find-calibration-value (string-split str "\n"))))
 
-(define test-input
-  "1abc2
-pqr3stu8vwx
-a1b2c3d4e5f
-treb7uchet")
-
-(find-all-calibration-values test-input)
-
-(define puzzle-input "eightqrssm9httwogqshfxninepnfrppfzhsc
+(define puzzle-input
+  "eightqrssm9httwogqshfxninepnfrppfzhsc
 one111jxlmc7tvklrmhdpsix
 bptwone4sixzzppg
 ninezfzseveneight5kjrjvtfjqt5nineone
@@ -1030,4 +1015,30 @@ drkdbmv4zbjbznsqtj
 eightbqfhnmvqsoneninezbrzcqkz4ftv
 1eightcrcjcbdthreebscfpvznqfrj6")
 
-(find-all-calibration-values puzzle-input)
+(find-all-calibration-values find-calibration-value puzzle-input)
+
+(define (calibration-string->numeric-string str)
+  (case str
+    [("one")   "1"]
+    [("two")   "2"]
+    [("three") "3"]
+    [("four")  "4"]
+    [("five")  "5"]
+    [("six")   "6"]
+    [("seven") "7"]
+    [("eight") "8"]
+    [("nine")  "9"]
+    [else str]))
+
+(define (find-calibration-value-2 str)
+  (let ([matches (regexp-match* #rx"one|two|three|four|five|six|seven|eight|nine|[1-9]" str)])
+    (string->number
+     (string-append
+      (calibration-string->numeric-string (first matches))
+      (calibration-string->numeric-string (last matches))))))
+
+(find-all-calibration-values find-calibration-value-2 puzzle-input)
+
+(find-calibration-value-2 "4nineeightseven2")
+(find-calibration-value-2 "nineeightseven")
+(find-calibration-value-2 "7pqrstsixteen")
