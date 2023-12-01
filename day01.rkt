@@ -1033,15 +1033,16 @@ eightbqfhnmvqsoneninezbrzcqkz4ftv
 (define (find-calibration-value-2 str)
   (let ([matches (regexp-match* #rx"one|two|three|four|five|six|seven|eight|nine|[1-9]" str)])
     (string->number
-     (if (= 1 (length matches))
-         (car matches)
-
-         (string-append
-          (calibration-string->numeric-string (first matches))
-          (calibration-string->numeric-string (last matches)))))))
+     (match matches
+       [(list x) x]
+       [else
+        (string-append
+         (calibration-string->numeric-string (first matches))
+         (calibration-string->numeric-string (last matches)))]))))
 
 (find-all-calibration-values find-calibration-value-2 puzzle-input)
 
 (find-calibration-value-2 "4nineeightseven2")
 (find-calibration-value-2 "nineeightseven")
 (find-calibration-value-2 "7pqrstsixteen")
+(find-calibration-value-2 "xfhtwonesevenfivethreepqzmrzrrfourthree5")
