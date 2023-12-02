@@ -56,7 +56,7 @@ def possibleGames (baseline: Round, games : Iterator[String]) : Int =
       (sum, game) =>
         if game
           .rounds
-          .foldLeft(true) { (ok, round) => ok && Round.isLessOrEqual(round, baseline) }
+          .forall { round => Round.isLessOrEqual(round, baseline) }
         then
           sum + game.id
         else
