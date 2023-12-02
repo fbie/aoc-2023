@@ -13,7 +13,7 @@
 (define (find-all-calibration-values find-calibration-value str)
   (foldl + 0 (map find-calibration-value (string-split str "\n"))))
 
-(define puzzle-input (file->string "day01-input.txt"))
+(define puzzle-input (file->string "input.txt"))
 (find-all-calibration-values find-calibration-value puzzle-input)
 
 (define alphanumeric-num-map
