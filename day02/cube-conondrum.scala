@@ -49,23 +49,24 @@ object Game:
     val rs = a.rounds.map(Round.prettyPrint).mkString("; ")
     s"Game ${a.id}: $rs"
 
-def possibleGames (baseline: Round, games : Iterator[String]) : Int =
+def possibleGames (baseline: Round, games : Seq[String]) : Int =
   games
     .map(Game.parse)
-    .foldLeft(0) {
-      (sum, game) =>
-        if game
-          .rounds
-          .forall { round => Round.isLessOrEqual(round, baseline) }
-        then
-          sum + game.id
-        else
-          sum
-      }
+    .filter { _.rounds.forall { round => Round.isLessOrEqual(round, baseline) }}
+    .map { _.id}
+    .sum
+
+def powers (games : Seq[String]) : Int =
+  games
+    .map(Game.parse)
+    .map { _.rounds.reduce(Round.max) }
+    .map { a => a.red * a.blue * a.green }
+    .sum
 
 import scala.io.Source
 
 @main
 def main (file : String) =
-  val input = Source.fromFile(file).getLines
-  println(possibleGames(Round(12, 13, 14), input))
+  val input = Source.fromFile(file).getLines.toSeq
+  println(s"Possible games: ${possibleGames(Round(12, 13, 14), input)}")
+  println(s"Powers: ${powers(input)}")
