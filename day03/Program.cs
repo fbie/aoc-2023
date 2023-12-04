@@ -19,13 +19,14 @@ class Line {
         return false;
     }
 
-    public MaybePartNumber FindAdjacentPartNumber(int i) {
+    public List<MaybePartNumber> FindAdjacentPartNumbers(int i) {
+        var ns = new List<MaybePartNumber>();
         foreach (var n in PartNumbers) {
             if (n.Start <= i && i <= n.End) {
-                return n;
+                ns.Add(n);
             }
         }
-        return null;
+        return ns;
     }
 }
 
@@ -33,21 +34,18 @@ class MaybePartNumberBuilder {
     private readonly StringBuilder DigitBuilder = new StringBuilder();
     private readonly int StartIndex;
     private readonly bool IsDefinitePartNumber;
-    private int EndIndex;
 
     public MaybePartNumberBuilder(int startIndex, bool isDefinitePartNumber) {
         StartIndex = Math.Max(0, startIndex - 1);
-        EndIndex = StartIndex;
         IsDefinitePartNumber = isDefinitePartNumber;
     }
 
     public void Add(char c) {
         DigitBuilder.Append(c);
-        EndIndex++;
     }
 
-    public MaybePartNumber ToMaybePartNumber()
-        => new MaybePartNumber(StartIndex, ++EndIndex, int.Parse(DigitBuilder.ToString()), IsDefinitePartNumber);
+    public MaybePartNumber ToMaybePartNumber(int index)
+        => new MaybePartNumber(StartIndex, index, int.Parse(DigitBuilder.ToString()), IsDefinitePartNumber);
 }
 
 class State {
@@ -66,7 +64,7 @@ class State {
     }
 
     private MaybePartNumber MakeAndReset() {
-        var n = PartNumberBuilder.ToMaybePartNumber();
+        var n = PartNumberBuilder.ToMaybePartNumber(Index);
         PartNumberBuilder = null;
         return n;
     }
@@ -97,20 +95,18 @@ class State {
 }
 
 public static class GearRatios {
-    static int SumParts(IEnumerable<char> schematic) {
+    static long SumParts(IEnumerable<char> schematic) {
         var state = new State();
         var previousLine = new Line();
         var currentLine = new Line();
-        var sum = 0;
+        var sum = 0L;
         void Add(MaybePartNumber n) {
-            Console.Error.WriteLine($"Adding definite {n.Value}");
             sum += n.Value;
         }
         void MaybeAdd(MaybePartNumber n) {
             if (n.IsDefinitePartNumber || previousLine.ContainsSymbol(n.Start, n.End)) {
                 Add(n);
             } else {
-                Console.Error.WriteLine($"Recording possible {n.Value}");
                 currentLine.AddPartNumber(n);
             }
         }
@@ -142,7 +138,7 @@ public static class GearRatios {
                     if (state.Symbol() is MaybePartNumber n) {
                         MaybeAdd(n);
                     }
-                    if (previousLine.FindAdjacentPartNumber(state.Index) is MaybePartNumber m) {
+                    foreach (var m in previousLine.FindAdjacentPartNumbers(state.Index)) {
                         Add(m);
                     }
                     continue;
