@@ -1,32 +1,22 @@
 ﻿using System.Text;
 
-enum Kind { Empty, Digit, Symbol, Star }
-
-static class KindUtil {
-    public static Kind LeastUpperBound(this Kind a, Kind b) => (Kind)Math.Max((int)a, (int)b);
-
-    public static bool IsSymbol(this Kind a) => a >= Kind.Symbol;
-}
-
-record MaybePartNumber(int Start, int End, int Value, Kind Kind);
+record MaybePartNumber(int Start, int End, int Value, bool IsDefinitePartNumber);
 
 class Line {
-    private readonly Dictionary<int, Kind> Symbols = new Dictionary<int, Kind>();
+    private readonly HashSet<int> Symbols = new HashSet<int>();
     private readonly List<MaybePartNumber> PartNumbers = new List<MaybePartNumber>();
 
-    public void AddSymbol(int i, char c) => AddSymbol(i, c == '*' ? Kind.Star : Kind.Symbol);
-
-    public void AddSymbol(int i, Kind kind) => Symbols[i] = kind;
+    public void AddSymbol(int i) => Symbols.Add(i);
 
     public void AddPartNumber(MaybePartNumber n) => PartNumbers.Add(n);
 
-    public Kind ContainsSymbol(int start, int end) {
+    public bool ContainsSymbol(int start, int end) {
         for (var i = start; i <= end; i++) {
-            if (Symbols.TryGetValue(i, out var kind)) {
-                return kind;
+            if (Symbols.Contains(i)) {
+                return true;
             }
         }
-        return Kind.Empty;
+        return false;
     }
 
     public List<MaybePartNumber> FindAdjacentPartNumbers(int i) {
@@ -43,11 +33,11 @@ class Line {
 class MaybePartNumberBuilder {
     private readonly StringBuilder DigitBuilder = new StringBuilder();
     private readonly int StartIndex;
-    private readonly Kind Kind;
+    private readonly bool IsDefinitePartNumber;
 
-    public MaybePartNumberBuilder(int startIndex, Kind kind) {
+    public MaybePartNumberBuilder(int startIndex, bool isDefinitePartNumber) {
         StartIndex = Math.Max(0, startIndex - 1);
-        Kind = kind;
+        IsDefinitePartNumber = isDefinitePartNumber;
     }
 
     public void Add(char c) {
@@ -55,13 +45,14 @@ class MaybePartNumberBuilder {
     }
 
     public MaybePartNumber ToMaybePartNumber(int index)
-        => new MaybePartNumber(StartIndex, index, int.Parse(DigitBuilder.ToString()), Kind);
+        => new MaybePartNumber(StartIndex, index, int.Parse(DigitBuilder.ToString()), IsDefinitePartNumber);
 }
 
 class State {
+    private enum Kind { Empty, Symbol, Digit }
     private MaybePartNumberBuilder PartNumberBuilder;
     private Kind Last;
-    public int Row {get; private set; }
+
     public int Index { get; private set; }
 
     public State() { Reset(); }
@@ -70,7 +61,6 @@ class State {
         PartNumberBuilder = null;
         Last = Kind.Empty;
         Index = -1;
-        Row++;
     }
 
     private MaybePartNumber MakeAndReset() {
@@ -79,16 +69,16 @@ class State {
         return n;
     }
 
-    public MaybePartNumber Symbol(char c) {
-        Last = c == '*' ? Kind.Star : Kind.Symbol;
+    public MaybePartNumber Symbol() {
+        Last = Kind.Symbol;
         return PartNumberBuilder != null
-            ? MakeAndReset() with { Kind = Last }
+            ? MakeAndReset() with { IsDefinitePartNumber = true }
             : null;
     }
 
     public void Digit(char c) {
         if (PartNumberBuilder == null) {
-            PartNumberBuilder = new MaybePartNumberBuilder(Index, Last);
+            PartNumberBuilder = new MaybePartNumberBuilder(Index, Last == Kind.Symbol);
         }
         PartNumberBuilder.Add(c);
         Last = Kind.Digit;
@@ -105,29 +95,19 @@ class State {
 }
 
 public static class GearRatios {
-    static (long, long) SumParts(IEnumerable<char> schematic) {
+    static long SumParts(IEnumerable<char> schematic) {
         var state = new State();
         var previousLine = new Line();
         var currentLine = new Line();
-        var gears = new Dictionary<(int, int), List<MaybePartNumber>>();
         var sum = 0L;
         void Add(MaybePartNumber n) {
             sum += n.Value;
         }
         void MaybeAdd(MaybePartNumber n) {
-            var kind = n.Kind.LeastUpperBound(previousLine.ContainsSymbol(n.Start, n.End));
-            if (kind.IsSymbol()) {
+            if (n.IsDefinitePartNumber || previousLine.ContainsSymbol(n.Start, n.End)) {
                 Add(n);
             } else {
                 currentLine.AddPartNumber(n);
-            }
-            if (kind == Kind.Star) {
-                var key = (state.Index, state.Row);
-                if (gears.TryGetValue(key, out var ns)) {
-                    ns.Add(n);
-                } else {
-                    gears[key] = new List<MaybePartNumber> { n };
-                }
             }
         }
         foreach (var c in schematic) {
@@ -154,26 +134,18 @@ public static class GearRatios {
                     continue;
                 }
                 default: {
-                    currentLine.AddSymbol(state.Index, c);
-                    if (state.Symbol(c) is MaybePartNumber n) {
+                    currentLine.AddSymbol(state.Index);
+                    if (state.Symbol() is MaybePartNumber n) {
                         MaybeAdd(n);
                     }
                     foreach (var m in previousLine.FindAdjacentPartNumbers(state.Index)) {
-                        // TODO: We want to record the symbol kind here, too.
                         Add(m);
                     }
                     continue;
                 }
             }
         }
-        return (sum,
-                gears
-                .Values
-                .Where(ns => ns.Count == 2)
-                .Select(ns => ns
-                        .Select(n => n.Value)
-                        .Aggregate((a, b) => a * b))
-                .Sum());
+        return sum;
     }
 
     static IEnumerable<char> GetSchematic(string file) {
