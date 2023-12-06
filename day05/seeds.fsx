@@ -2,7 +2,7 @@ open System
 
 module Util =
     let parseInt s =
-        try Int32.Parse s with _ -> failwith $"Failed to parse {s} as an int"
+        try Int64.Parse s with _ -> failwith $"Failed to parse {s} as an int"
 
     let inline flip f a b = f b a
 
@@ -10,9 +10,9 @@ module Util =
 
 module Mapping =
     type t =
-        { destination: int;
-          source : int;
-          range : int }
+        { destination: int64;
+          source : int64;
+          range : int64 }
 
     open Util
 
@@ -26,18 +26,25 @@ module Mapping =
                 failwith "Malformed mapping"
 
     let iter f (m : t) : unit =
-        for i in 0 .. m.range do
+        for i in 0L .. m.range do
             f (m.destination + i) (m.source + i)
 
+    let isInDestinationRange i (m : t) =
+        m.destination <= i && i <= m.destination + m.range
+
+    let getSource i (m : t) =
+        m.source + (i - m.destination)
+
 module ReverseMap =
-    type t = int array
+    type t = Mapping.t list
 
     let make (mappings : Mapping.t list) : t =
-        let size = List.fold (fun n (m : Mapping.t) -> max n (m.destination + m.range)) 0 mappings
-        let mapping = Array.init (size + 1) id
-        let set i x = try mapping[i] <- x with _ -> failwith $"{i} >= |{Array.length mapping}|"
-        List.iter (Mapping.iter set) mappings
-        mapping
+        List.sortBy (fun (m : Mapping.t) -> m.destination) mappings
+
+    let get (i : int64) (ms : t) =
+        match List.tryFind (Mapping.isInDestinationRange i) ms with
+            | Some m -> Mapping.getSource i m
+            | _ -> i
 
 module Almanac =
     open System.IO
@@ -77,22 +84,25 @@ module Almanac =
                 | initialSeeds, _, reverseMaps ->
                     initialSeeds, reverseMaps
 
-    let find (initialSeeds : int Set) (reverseMaps : ReverseMap.t list) =
+    let find (initialSeeds : int64 Set) (reverseMaps : ReverseMap.t list) =
         let mutable result = None
-        let mutable i = 0
-        let tries = (List.head reverseMaps).Length
-        let get i (rm : ReverseMap.t) =
-            let j = if i >= Array.length rm then i else rm[i]
-            j
-        while result = None && i < tries do
-            let j = List.fold get i reverseMaps
+        let mutable i = 0L
+        while result = None do
+            let j = List.fold ReverseMap.get i reverseMaps
             if Set.contains j initialSeeds then
                 result <- Some i
             else
-                i <- i + 1
+                i <- i + 1L
         result
 
-let initialSeeds, reverseMaps = Almanac.parse "test-input.txt"
-match Almanac.find initialSeeds reverseMaps with
-    | Some i -> printfn "Result: %d" i
-    | None -> printfn "No result :("
+let main file =
+    eprintfn "Parsing..."
+    let initialSeeds, reverseMaps = Almanac.parse file
+    eprintfn "Running algorithm..."
+    match Almanac.find initialSeeds reverseMaps with
+        | Some i -> printfn "Result: %d" i
+        | None -> printfn "No result :("
+
+match fsi.CommandLineArgs with
+    | [| _; _; file |] -> main file
+    | _ -> eprintfn "Usage: dotnet fsi seeds.fsx -- <file>"
