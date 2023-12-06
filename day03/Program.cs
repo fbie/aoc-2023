@@ -53,18 +53,20 @@ class State {
     private MaybePartNumberBuilder PartNumberBuilder;
     private Kind Last;
 
-    public int Index { get; private set; }
+    public int Line { get; private set; }
+    public int Column { get; private set; }
 
     public State() { Reset(); }
 
     public void Reset() {
         PartNumberBuilder = null;
         Last = Kind.Empty;
-        Index = -1;
+        Line = -1;
+        Column++;
     }
 
     private MaybePartNumber MakeAndReset() {
-        var n = PartNumberBuilder.ToMaybePartNumber(Index);
+        var n = PartNumberBuilder.ToMaybePartNumber(Line);
         PartNumberBuilder = null;
         return n;
     }
@@ -78,7 +80,7 @@ class State {
 
     public void Digit(char c) {
         if (PartNumberBuilder == null) {
-            PartNumberBuilder = new MaybePartNumberBuilder(Index, Last == Kind.Symbol);
+            PartNumberBuilder = new MaybePartNumberBuilder(Line, Last == Kind.Symbol);
         }
         PartNumberBuilder.Add(c);
         Last = Kind.Digit;
@@ -91,7 +93,7 @@ class State {
             : null;
     }
 
-    public void Step() => Index++;
+    public void Step() => Line++;
 }
 
 public static class GearRatios {
@@ -99,24 +101,40 @@ public static class GearRatios {
         var state = new State();
         var previousLine = new Line();
         var currentLine = new Line();
-        var sum = 0L;
-        void Add(MaybePartNumber n) {
-            sum += n.Value;
-        }
-        void MaybeAdd(MaybePartNumber n) {
-            if (n.IsDefinitePartNumber || previousLine.ContainsSymbol(n.Start, n.End)) {
-                Add(n);
+        var gears = new Dictionary<(int, int), List<MaybePartNumber>>();
+        void RecordMaybeGear(MaybePartNumber n) {
+            var key = (state.Line, state.Column);
+            if (gears.TryGetValue(key, out var ns)) {
+                ns.Add(n);
             } else {
-                currentLine.AddPartNumber(n);
+                ns = new List<MaybePartNumber> { n };
             }
         }
+        var sum = 0L;
         foreach (var c in schematic) {
-            state.Step();
+            void Add(MaybePartNumber n) {
+                sum += n.Value;
+            }
+
+            void MaybeAdd(MaybePartNumber n) {
+                if (n.IsDefinitePartNumber || previousLine.ContainsSymbol(n.Start, n.End)) {
+                    Add(n);
+                } else {
+                    currentLine.AddPartNumber(n);
+                }
+            }
+
             void Empty() {
                 if (state.Empty() is MaybePartNumber n) {
                     MaybeAdd(n);
+                    if (c == '*') {
+                        RecordMaybeGear(n);
+                    }
                 }
             }
+
+            state.Step();
+
             switch (c) {
                 case '\n': {
                     Empty();
@@ -134,12 +152,19 @@ public static class GearRatios {
                     continue;
                 }
                 default: {
-                    currentLine.AddSymbol(state.Index);
+                    currentLine.AddSymbol(state.Line);
+                    var maybeGear = c == '*';
                     if (state.Symbol() is MaybePartNumber n) {
                         MaybeAdd(n);
+                        if (maybeGear) {
+                            RecordMaybeGear(n);
+                        }
                     }
-                    foreach (var m in previousLine.FindAdjacentPartNumbers(state.Index)) {
+                    foreach (var m in previousLine.FindAdjacentPartNumbers(state.Line)) {
                         Add(m);
+                        if (maybeGear) {
+                            RecordMaybeGear(m);
+                        }
                     }
                     continue;
                 }
